@@ -1,13 +1,18 @@
 /*
 <!-- START OF FILE: Embedded-Element-PML-From-Template.md -->
 FILENAME: Embedded-Element-PML-From-Template.md
-Version: 3.4.0
-Date: 2025-08-19 20:00
+Version: 3.5.1
+Date: 2025-08-19 23:45
 Author: Rolland MELET & Claude Code
 Description: Script ProcessMetaLanguage V3 pour créer des éléments Excalidraw avec variables.
-             Version 3.4.0 - Ajout de l'élément image pour embedding visuel complet
+             Version 3.5.0 - REFACTORISATION MAJEURE: Parsing YAML ligne par ligne
 
 Changelog:
+- v3.5.1: CORRECTION - Affichage correct des prompts utilisateur et amélioration embedding
+- v3.5.0: REFACTORISATION MAJEURE - Parsing YAML ligne par ligne, correction totale du système de dropdown
+- v3.4.3: CORRECTION MAJEURE - Regex property_definitions ne s'arrête plus aux commentaires internes
+- v3.4.2: Correction regex parsePropertyDefinitions + logs détaillés
+- v3.4.1: Correction parsing options YAML pour listes déroulantes
 - v3.4.0: Ajout de l'élément image dans le JSON pour embedding visuel complet
 - v3.3.0: Création des objets dans le même dossier que le canvas pour embedding correct
 - v3.2.2: Correction erreur MarkdownView non défini, suppression rechargement inutile
@@ -30,7 +35,7 @@ Changelog:
 // PROCESSMETALANGUAGE V3 - EMBEDDED ELEMENT
 // ============================================
 
-const SCRIPT_VERSION = "3.4.0";
+const SCRIPT_VERSION = "3.5.1";
 const SCRIPT_NAME = "ProcessMetaLanguage V3 - Embedded Element";
 
 // Configuration des chemins
@@ -146,75 +151,182 @@ async function selectTemplate(templates) {
 // ============================================
 
 /**
- * Parse les property_definitions d'un template
+ * Parse une propriété YAML ligne par ligne de manière robuste
+ * @param {string} yamlContent - Contenu YAML d'une propriété
+ * @param {string} propName - Nom de la propriété
+ * @returns {Object} Propriété parsée
+ */
+function parseYAMLProperty(yamlContent, propName) {
+    log("Parsing ligne par ligne de la propriété: " + propName);
+    
+    const property = {
+        name: propName,
+        source: "user",
+        required: false,
+        prompt: propName + ":",
+        description: null,
+        default_value: null,
+        options: []
+    };
+    
+    const lines = yamlContent.split('\n');
+    let inOptionsArray = false;
+    let currentIndentLevel = 0;
+    
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const trimmed = line.trim();
+        
+        // Ignorer les lignes vides et les commentaires
+        if (!trimmed || trimmed.startsWith('#')) {
+            continue;
+        }
+        
+        // Déterminer le niveau d'indentation
+        const indent = line.search(/\S/);
+        
+        // Si on était dans un array options et que l'indentation diminue, on sort
+        if (inOptionsArray && indent <= currentIndentLevel) {
+            inOptionsArray = false;
+        }
+        
+        if (inOptionsArray) {
+            // Parser les éléments de la liste options
+            const itemMatch = trimmed.match(/^-\s*["']?([^"']+)["']?\s*$/);
+            if (itemMatch) {
+                property.options.push(itemMatch[1].trim());
+                log("Option ajoutée: " + itemMatch[1].trim());
+            }
+            continue;
+        }
+        
+        // Parser les propriétés simples
+        if (trimmed.includes(':')) {
+            const colonIndex = trimmed.indexOf(':');
+            const key = trimmed.substring(0, colonIndex).trim();
+            const value = trimmed.substring(colonIndex + 1).trim();
+            
+            switch (key) {
+                case 'source':
+                    property.source = value.replace(/["']/g, '');
+                    log("Source: " + property.source);
+                    break;
+                    
+                case 'required':
+                    property.required = value.replace(/["']/g, '').toLowerCase() === 'true';
+                    log("Required: " + property.required);
+                    break;
+                    
+                case 'prompt':
+                    property.prompt = value.replace(/^["']|["']$/g, '');
+                    log("Prompt: " + property.prompt);
+                    break;
+                    
+                case 'description':
+                    property.description = value.replace(/^["']|["']$/g, '');
+                    log("Description: " + property.description);
+                    break;
+                    
+                case 'default_value':
+                    property.default_value = value.replace(/^["']|["']$/g, '');
+                    log("Default value: " + property.default_value);
+                    break;
+                    
+                case 'options':
+                    currentIndentLevel = indent;
+                    if (value.startsWith('[')) {
+                        // Format inline: options: ["opt1", "opt2"]
+                        const inlineMatch = value.match(/\[(.*)\]/);
+                        if (inlineMatch) {
+                            const optionsStr = inlineMatch[1];
+                            property.options = optionsStr
+                                .split(',')
+                                .map(opt => opt.trim().replace(/["']/g, ''))
+                                .filter(opt => opt.length > 0);
+                            log("Options inline trouvées: " + property.options.join(', '));
+                        }
+                    } else {
+                        // Format multilignes
+                        inOptionsArray = true;
+                        log("Début parsing options multilignes");
+                    }
+                    break;
+            }
+        }
+    }
+    
+    log("Propriété " + propName + " parsée: source=" + property.source + ", prompt=" + property.prompt + ", options=" + property.options.length);
+    return property;
+}
+
+/**
+ * Parse les property_definitions d'un template avec approche ligne par ligne
  * @param {string} content - Contenu du template
  * @returns {Object} Définitions des propriétés
  */
 function parsePropertyDefinitions(content) {
-    log("Parsing des property_definitions...");
+    log("Parsing des property_definitions avec approche ligne par ligne...");
     
     const propertyDefs = {};
     
     // Extraire la section property_definitions
-    const propsMatch = content.match(/property_definitions:\s*\n([\s\S]*?)(?=\n[^\s]|\n---|\n#|$)/);
+    const propsMatch = content.match(/property_definitions:\s*\n([\s\S]*?)(?=\n[a-zA-Z]|\n---|\n===|$)/);
+    
     if (!propsMatch) {
         log("Aucune property_definitions trouvée", "warning");
         return propertyDefs;
     }
     
     const propsSection = propsMatch[1];
+    log("Section property_definitions capturée: " + propsSection.length + " caractères");
     
-    // Parser chaque propriété
-    const propRegex = /^\s{2}(\w+):\s*\n([\s\S]*?)(?=\n\s{2}\w+:|\n[^\s]|$)/gm;
-    let match;
+    // Diviser en blocs de propriétés (indentation niveau 2)
+    const lines = propsSection.split('\n');
+    let currentProperty = null;
+    let currentContent = [];
     
-    while ((match = propRegex.exec(propsSection)) !== null) {
-        const propName = match[1];
-        const propContent = match[2];
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
         
-        const property = {
-            name: propName,
-            source: extractValue(propContent, "source") || "user",
-            required: extractValue(propContent, "required") === "true",
-            prompt: extractValue(propContent, "prompt") || propName + ":",
-            description: extractValue(propContent, "description"),
-            default_value: extractValue(propContent, "default_value"),
-            options: extractOptions(propContent)
-        };
+        // Détecter une nouvelle propriété (indentation exactement 2 espaces + nom + :)
+        const propMatch = line.match(/^  (\w+):\s*$/);
         
-        propertyDefs[propName] = property;
-        log("Propriété parsée: " + propName + " (source: " + property.source + ")");
+        if (propMatch) {
+            // Sauvegarder la propriété précédente
+            if (currentProperty && currentContent.length > 0) {
+                const yamlContent = currentContent.join('\n');
+                propertyDefs[currentProperty] = parseYAMLProperty(yamlContent, currentProperty);
+            }
+            
+            // Commencer une nouvelle propriété
+            currentProperty = propMatch[1];
+            currentContent = [];
+            log("Nouvelle propriété détectée: " + currentProperty);
+        } else if (currentProperty && (line.startsWith('    ') || line.trim() === '')) {
+            // Ligne appartenant à la propriété courante
+            currentContent.push(line);
+        } else if (currentProperty && line.match(/^  [a-zA-Z]/)) {
+            // Nouvelle propriété détectée, sauvegarder l'ancienne
+            const yamlContent = currentContent.join('\n');
+            propertyDefs[currentProperty] = parseYAMLProperty(yamlContent, currentProperty);
+            currentProperty = null;
+            currentContent = [];
+            
+            // Réexaminer cette ligne
+            i--;
+        }
     }
     
+    // Sauvegarder la dernière propriété
+    if (currentProperty && currentContent.length > 0) {
+        const yamlContent = currentContent.join('\n');
+        propertyDefs[currentProperty] = parseYAMLProperty(yamlContent, currentProperty);
+    }
+    
+    log("Parsing terminé. " + Object.keys(propertyDefs).length + " propriété(s) trouvée(s): " + Object.keys(propertyDefs).join(', '));
     return propertyDefs;
 }
 
-/**
- * Extrait une valeur d'une propriété YAML
- * @param {string} content - Contenu YAML
- * @param {string} key - Clé à extraire
- * @returns {string} Valeur extraite
- */
-function extractValue(content, key) {
-    const regex = new RegExp(key + ":\\s*\"?([^\"\\n]+)\"?", 'i');
-    const match = content.match(regex);
-    return match ? match[1].trim() : null;
-}
-
-/**
- * Extrait les options d'une propriété
- * @param {string} content - Contenu YAML
- * @returns {Array} Liste des options
- */
-function extractOptions(content) {
-    const optionsMatch = content.match(/options:\s*\[(.*?)\]/);
-    if (!optionsMatch) return [];
-    
-    return optionsMatch[1]
-        .split(',')
-        .map(opt => opt.trim().replace(/[\"']/g, ''))
-        .filter(opt => opt.length > 0);
-}
 
 // ============================================
 // COLLECTE DES VALEURS DE VARIABLES
@@ -286,15 +398,19 @@ async function collectUserValue(propDef) {
         let value;
         
         if (propDef.options && propDef.options.length > 0) {
-            // Utiliser utils.suggester avec le bon ordre de paramètres
+            // Utiliser utils.suggester avec le bon ordre de paramètres et le prompt correct
+            const promptText = propDef.prompt || propDef.name + ":";
+            log("Affichage suggester pour " + propDef.name + " avec prompt: " + promptText);
             value = await utils.suggester(
                 propDef.options,
-                propDef.options
+                propDef.options,
+                promptText  // Ajouter le prompt comme 3ème paramètre
             );
         } else {
             // Input simple
             const promptText = propDef.prompt || propDef.name + ":";
             const defaultVal = propDef.default_value || "";
+            log("Affichage inputPrompt pour " + propDef.name + " avec prompt: " + promptText);
             value = await utils.inputPrompt(promptText, defaultVal);
         }
         
