@@ -590,6 +590,7 @@ async function addManualEmbedding(activeFile, newFile) {
                     "status": "pending",
                     "fileId": fileId,
                     "scale": [1, 1]
+                    // Note: pas de customData.isAnchored pour permettre plus de flexibilité
                 };
                 
                 // Ajouter l'élément au tableau
