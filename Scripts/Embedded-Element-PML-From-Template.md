@@ -2,7 +2,7 @@
 <!-- START OF FILE: Embedded-Element-PML-From-Template.md -->
 FILENAME: Embedded-Element-PML-From-Template.md
 Version: 3.4.0
-Date: 2025-01-19 20:00
+Date: 2025-08-19 20:00
 Author: Rolland MELET & Claude Code
 Description: Script ProcessMetaLanguage V3 pour créer des éléments Excalidraw avec variables.
              Version 3.4.0 - Ajout de l'élément image pour embedding visuel complet
