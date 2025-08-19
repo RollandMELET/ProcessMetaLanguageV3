@@ -1,0 +1,163 @@
+# <!-- START OF FILE: .gitignore -->
+# FILENAME: .gitignore
+# Version: 1.0.0
+# Date: 2025-01-19 17:30
+# Author: Rolland MELET & Claude Code
+# Description: Fichier .gitignore pour exclure les fichiers sensibles et temporaires d'un repo public
+
+# === SÉCURITÉ - VARIABLES D'ENVIRONNEMENT ===
+.env
+.env.*
+!.env.example
+.envrc
+
+# === CLÉS ET CERTIFICATS ===
+*.key
+*.pem
+*.p12
+*.pfx
+*.cer
+*.crt
+*.der
+*.csr
+*.jks
+*.keystore
+id_rsa*
+id_dsa*
+id_ed25519*
+id_ecdsa*
+
+# === SECRETS ET CREDENTIALS ===
+secrets/
+credentials/
+auth/
+*.secrets
+*.credentials
+config/secret*
+config/private*
+.aws/
+.gcp/
+.azure/
+
+# === TOKENS ET API KEYS ===
+.token
+*.token
+api-keys/
+tokens/
+.secrets
+.private
+
+# === FICHIERS DE CONFIGURATION SENSIBLES ===
+config/production.json
+config/staging.json
+.npmrc
+.pypirc
+.dockercfg
+.docker/config.json
+
+# === LOGS ===
+*.log
+logs/
+log/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# === DÉPENDANCES ===
+node_modules/
+bower_components/
+jspm_packages/
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# === IDEs ET ÉDITEURS ===
+.vscode/settings.json
+.vscode/launch.json
+.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# === SYSTÈMES ===
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# === BUILDS ET CACHES ===
+.cache/
+.temp/
+.tmp/
+tmp/
+temp/
+.nyc_output/
+coverage/
+*.lcov
+.grunt/
+.sass-cache/
+.next/
+.nuxt/
+.vuepress/dist/
+.serverless/
+
+# === BASES DE DONNÉES LOCALES ===
+*.sqlite
+*.sqlite3
+*.db
+*.mdb
+*.accdb
+
+# === SAUVEGARDES ===
+*.bak
+*.backup
+*.old
+*.orig
+*~
+
+# === FICHIERS DOCKER SENSIBLES ===
+docker-compose.override.yml
+.dockerignore.local
+
+# === FICHIERS DE TESTS ===
+.coverage
+htmlcov/
+.tox/
+.pytest_cache/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# === FICHIERS TEMPORAIRES ET SYSTÈMES ===
+*.tmp
+*.temp
+.cache
+.parcel-cache
+
+# <!-- END OF FILE: .gitignore -->
